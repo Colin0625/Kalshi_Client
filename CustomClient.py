@@ -119,8 +119,10 @@ class Client():
                                     v[1] += delta
                                     if v[1] == 0:
                                         del i['book'][side][j]
+                                    break
                             if not found:
                                 i['book'][side].append([price, delta])
+                            break          
                 for i in self.orderbooks:
                     if i["id"] == my_id:
                         print(i)
