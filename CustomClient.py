@@ -84,7 +84,7 @@ class Client():
                 "channels": [
                 "orderbook_delta"
                 ],
-                "market_tickers": ticker
+                "market_tickers": [ticker]
             }
         })
 
@@ -127,18 +127,12 @@ class Client():
                 for i in self.orderbooks:
                     if i["id"] == my_id:
                         print(i)
-    
-    async def show_book(self):
-        id = await input("Enter book id >>> ")
-        for i in self.orderbooks:
-            if i['id'] == int(id):
-                print(i)
-
+                        break
 
 
 client = Client()
 
 print(client.get_portfolio())
 
-#print(client.get_positions())
+client.connect_to_book("KXMLBGAME-25SEP17SFAZ-SF")
 
