@@ -23,9 +23,9 @@ def load_private_key_from_file(file_path):
 
 
 key_id = None
-with open("secrets/key_id.txt", 'r') as f:
+with open("secrets/key_id.txt", 'r') as f: # File with your personal key id
     key_id = f.read()
-private_key = load_private_key_from_file('secrets/new_key.txt')
+private_key = load_private_key_from_file('secrets/new_key.txt') # File with your RSA private key
 api_base = "https://api.elections.kalshi.com"
 
 
