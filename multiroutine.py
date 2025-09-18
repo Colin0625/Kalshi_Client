@@ -4,7 +4,7 @@ import time
 import typing
 import threading
 
-class Manager():
+class TaskManager():
     def __init__(self):
         self._tasks = {}
         self._labels = {}
@@ -20,3 +20,25 @@ class Manager():
             self._tasks[tid] = task
             self._labels[tid] = label or f"task-{tid}"
             return tid
+        
+    async def _wrap(self, coro, tid):
+        label = self._labels.get(tid, f"task-{tid}")
+        try:
+            return await coro
+        finally:
+            # auto-clean when done
+            async with self._lock:
+                self._tasks.pop(tid, None)
+                self._labels.pop(tid, None)
+    
+    async def cancel(self, tid: int) -> bool:
+        async with self._lock:
+            t = self._tasks.get(tid)
+            if not t:
+                return False
+            t.cancel()
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
+        return True

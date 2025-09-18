@@ -7,6 +7,7 @@ import uuid
 import time
 import base64
 import threading
+import multiroutine
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
@@ -131,14 +132,16 @@ class Client():
                     occurrence = 0
     
     async def connect_to_book(self, ticker):
+        print("started connecting")
         book = asyncio.create_task(client.book_connection(ticker))
         await book
 
 
 
 client = Client()
+manager = multiroutine.TaskManager()
+
 
 print(client.get_portfolio())
 
-asyncio.run(client.connect_to_book("KXMLBGAME-25SEP17ATHBOS-ATH"))
-print("Past the run function")
+asyncio.run(manager.add(client.connect_to_book("KXNFLGAME-25SEP18MIABUF-BUF"), "Book"))
