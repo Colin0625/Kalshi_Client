@@ -74,7 +74,7 @@ class Client():
         headers = self.get_headers("/trade-api/v2/portfolio/positions")
         return requests.get(api_base + "/trade-api/v2/portfolio/positions", headers=headers).json()
 
-    async def connect_to_book(self, ticker):
+    async def book_connection(self, ticker):
         self.orderbook_ids.append(self.orderbook_ids[-1]+1)
         my_id = self.orderbook_ids[-1]
         msg = json.dumps({
@@ -94,6 +94,7 @@ class Client():
             print(f"Connected to order book of {ticker} with id of {my_id}")
             tick = -1
             await ws.send(msg)
+            occurrence = 0
             while True:
                 raw = await ws.recv()
                 if tick == -1:
@@ -123,16 +124,21 @@ class Client():
                                     break
                             if not found:
                                 i['book'][side].append([price, delta])
-                            break          
-                for i in self.orderbooks:
-                    if i["id"] == my_id:
-                        print(i)
-                        break
+                            break
+                    occurrence += 1
+                if occurrence == 10:
+                    print(f"Orderbook {my_id} is alive")
+                    occurrence = 0
+    
+    async def connect_to_book(self, ticker):
+        book = asyncio.create_task(client.book_connection(ticker))
+        await book
+
 
 
 client = Client()
 
 print(client.get_portfolio())
 
-client.connect_to_book("KXMLBGAME-25SEP17SFAZ-SF")
-
+asyncio.run(client.connect_to_book("KXMLBGAME-25SEP17ATHBOS-ATH"))
+print("Past the run function")
