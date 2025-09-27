@@ -47,6 +47,8 @@ class Client():
     def __init__(self):
         self.orderbook_ids = [0]
         self.orderbooks = []
+        self._running = []
+        self._lock = asyncio.Lock()
     
     def get_headers(self, path):
         timestamp = str(int(dt.datetime.now().timestamp() * 1000))
@@ -76,8 +78,11 @@ class Client():
         return requests.get(api_base + "/trade-api/v2/portfolio/positions", headers=headers).json()
 
     async def book_connection(self, ticker):
-        self.orderbook_ids.append(self.orderbook_ids[-1]+1)
-        my_id = self.orderbook_ids[-1]
+        async with self._lock:
+            self.orderbook_ids.append(self.orderbook_ids[-1]+1)
+            my_id = self.orderbook_ids[-1]
+            self._running.append(True)
+
         msg = json.dumps({
             "id": my_id,
             "cmd": "subscribe",
@@ -127,21 +132,20 @@ class Client():
                                 i['book'][side].append([price, delta])
                             break
                     occurrence += 1
-                if occurrence == 10:
-                    print(f"Orderbook {my_id} is alive")
-                    occurrence = 0
+                print(raw)
     
-    async def connect_to_book(self, ticker):
+    def wrap(self, ticker):
         print("started connecting")
-        book = asyncio.create_task(client.book_connection(ticker))
-        await book
-
+        asyncio.run(client.book_connection(ticker))
+    
+    def connect_to_book(self, ticker):
+        task = threading.Thread(target=self.wrap(ticker))
+        task.start()
+        return task
+    
 
 
 client = Client()
-manager = multiroutine.TaskManager()
-
-
 print(client.get_portfolio())
 
-asyncio.run(manager.add(client.connect_to_book("KXNFLGAME-25SEP18MIABUF-BUF"), "Book"))
+client.connect_to_book("KXNCAAFGAME-25SEP26HOUORST-ORST")
