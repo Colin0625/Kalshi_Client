@@ -50,18 +50,18 @@ class Client():
         self._running = []
         self._lock = asyncio.Lock()
     
-    def get_headers(self, path):
+    def get_headers(self, path, method):
         timestamp = str(int(dt.datetime.now().timestamp() * 1000))
 
         headers = {
             "KALSHI-ACCESS-KEY": key_id,
             "KALSHI-ACCESS-TIMESTAMP": timestamp,
-            "KALSHI-ACCESS-SIGNATURE": sign_key(path, "GET", timestamp),
+            "KALSHI-ACCESS-SIGNATURE": sign_key(path, method, timestamp),
         }
         return headers
     
     def get_portfolio(self):
-        headers = self.get_headers("/trade-api/v2/portfolio/balance")
+        headers = self.get_headers("/trade-api/v2/portfolio/balance", "GET")
 
         response = requests.get(api_base + "/trade-api/v2/portfolio/balance", headers=headers)
         return response.json()
@@ -74,7 +74,7 @@ class Client():
             return requests.get(f"https://api.elections.kalshi.com/trade-api/v2/markets/{ticker}/orderbook", params=query).json()
 
     def get_positions(self):
-        headers = self.get_headers("/trade-api/v2/portfolio/positions")
+        headers = self.get_headers("/trade-api/v2/portfolio/positions", "GET")
         return requests.get(api_base + "/trade-api/v2/portfolio/positions", headers=headers).json()
 
     async def book_connection(self, ticker):
@@ -94,7 +94,7 @@ class Client():
             }
         })
 
-        headers = self.get_headers("/trade-api/ws/v2")
+        headers = self.get_headers("/trade-api/ws/v2", "GET")
         
         async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
             print(f"Connected to order book of {ticker} with id of {my_id}")
@@ -142,10 +142,35 @@ class Client():
         task = threading.Thread(target=self.wrap(ticker))
         task.start()
         return task
+
+    def menu(self):
+        commands = ["-h", "start_book", "start_trade"]
+        x = input("> ")
+        if x == "-h":
+            print(commands)
+            self.menu()
+
+    def create_order(self, action, side, ticker, price, contracts):
+        headers = self.get_headers("/trade-api/v2/portfolio/orders", "POST")
+        msg = {
+            "client_order_id": str(uuid.uuid4()),
+            "action": action,
+            "side": side,
+            "ticker": ticker,
+            "yes_price": price,
+            "count": contracts
+        }
+        order = requests.post(api_base + "/trade-api/v2/portfolio/orders", json=msg, headers=headers).json()
+        print(order)
+
+    def main(self):
+        self.menu()
     
+    def start(self):
+        self.main()
 
 
 client = Client()
 print(client.get_portfolio())
 
-client.connect_to_book("KXNCAAFGAME-25SEP26HOUORST-ORST")
+print(client.create_order("buy", "yes", "KXNCAAFGAME-25SEP26HOUORST-ORST", 20, 1))
