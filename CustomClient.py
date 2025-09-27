@@ -157,9 +157,12 @@ class Client():
             "action": action,
             "side": side,
             "ticker": ticker,
-            "yes_price": price,
             "count": contracts
         }
+        if side == "yes":
+            msg["yes_price"] = price
+        elif side == "no":
+            msg["no_price"] = price
         order = requests.post(api_base + "/trade-api/v2/portfolio/orders", json=msg, headers=headers).json()
         print(order)
 
