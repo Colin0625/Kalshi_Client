@@ -132,7 +132,7 @@ class Client():
                                 i['book'][side].append([price, delta])
                             break
                     occurrence += 1
-                print(raw)
+                print(raw.strip())
     
     def wrap(self, ticker):
         print("started connecting")
@@ -164,7 +164,51 @@ class Client():
         elif side == "no":
             msg["no_price"] = price
         order = requests.post(api_base + "/trade-api/v2/portfolio/orders", json=msg, headers=headers).json()
-        print(order)
+        return order
+
+    def get_queue(self, ticker):
+        headers = self.get_headers("/trade-api/v2/portfolio/orders/queue_positions", "GET")
+        query = {"market_tickers": [ticker]}
+        url = api_base + "/trade-api/v2/portfolio/orders/queue_positions"
+        response = requests.get(url, params=query, headers=headers)
+        return response.json()
+
+    async def fill_connector(self):
+        msg = json.dumps({
+            "id": 0,
+            "cmd": "subscribe",
+            "params": {
+                "channels": [
+                "fill"
+                ],
+            }
+        })
+
+        headers = self.get_headers("/trade-api/ws/v2", "GET")
+        async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
+            print(f"Connected to fills")
+            await ws.send(msg)
+            while True:
+                raw = await ws.recv()
+                print(raw)
+
+    def fill_wrap(self):
+        print("started connecting")
+        asyncio.run(client.fill_connector())
+    
+    def connect_to_fills(self):
+        task = threading.Thread(target=self.fill_wrap())
+        task.start()
+        return task
+
+    def get_opposite_ticker(self, ticker):
+        event = ticker.split("-")[0]
+        date = ticker.split("-")[1]
+        team1 = ticker.split("-")[2]
+        last_date = int([x for x in date if x.isdigit()][-1])
+        teams = date[last_date:]
+        team2 = teams.replace(team1, "")
+        return ("-".join([event,date,team1]), "-".join([event,date,team2]))
 
     def main(self):
         self.menu()
@@ -176,4 +220,15 @@ class Client():
 client = Client()
 print(client.get_portfolio())
 
-print(client.create_order("buy", "yes", "KXNCAAFGAME-25SEP26HOUORST-ORST", 20, 1))
+#print(client.create_order("buy", "yes", "KXNCAAFGAME-25SEP27USCILL-USC", 68, 5))
+#print(client.create_order("buy", "yes", "KXNCAAFGAME-25SEP27USCILL-ILL", 31, 5))
+#print(client.create_order("sell", "yes", "KXNCAAFGAME-25SEP27USCILL-USC", 70, 5))
+#print(client.create_order("sell", "yes", "KXNCAAFGAME-25SEP27USCILL-ILL", 32, 5))
+#client.connect_to_book("KXNCAAFGAME-25SEP27USCILL-USC")
+ticker = "KXNCAAFGAME-25SEP27USCILL-ILL"
+
+print(client.get_opposite_ticker(ticker))
+
+#print(client.get_queue("KXNCAAFGAME-25SEP27USCILL-ILL"))
+
+client.connect_to_fills()
