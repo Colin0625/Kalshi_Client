@@ -173,7 +173,7 @@ class Client():
         response = requests.get(url, params=query, headers=headers)
         return response.json()
 
-    async def fill_connector(self):
+    async def fill_connector(self, order_ids, prices, teams):
         msg = json.dumps({
             "id": 0,
             "cmd": "subscribe",
@@ -188,27 +188,85 @@ class Client():
         async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
             print(f"Connected to fills")
             await ws.send(msg)
+            tick = -1
+            initial = True
+            second = False
+            filled = None
+            contracts = None
             while True:
+                print("Awaiting")
                 raw = await ws.recv()
-                print(raw)
+                print(f"Raw: {raw}")
+                raw = json.loads(raw)
+                id = raw.get("msg").get("order_id")
+                if tick == -1:
+                    tick = 0
+                    continue
+                if initial and not second:
+                    contracts = raw.get("msg").get("count")
+                    if id == order_ids[0]:
+                        self.cancel_order(order_ids[3])
+                        filled = 0
+                    elif id == order_ids[1]:
+                        self.cancel_order(order_ids[2])
+                        filled = 1
+                    elif id == order_ids[2]:
+                        self.cancel_order(order_ids[1])
+                        filled = 2
+                    elif id == order_ids[3]:
+                        self.cancel_order(order_ids[0])
+                        filled = 3
+                    initial = False
+                    second = True
 
-    def fill_wrap(self):
+                if (not initial) and second:
+                    if filled == 0:
+                        if id == order_ids[1]:
+                            return
+                        elif id == order_ids[2]:
+                            self.create_order("sell", "yes", teams[1], prices[3], contracts)
+                    elif filled == 1:
+                        if id == order_ids[0]:
+                            return
+                        elif id == order_ids[3]:
+                            self.create_order("buy", "yes", teams[1], prices[2], contracts)
+                    elif filled == 2:
+                        if id == order_ids[3]:
+                            return
+                        elif id == order_ids[0]:
+                            self.create_order("sell", "yes", teams[0], prices[1], contracts)
+                    elif filled == 3:
+                        if id == order_ids[2]:
+                            return
+                        elif id == order_ids[1]:
+                            self.create_order("buy", "yes", teams[0], prices[0], contracts)
+                    second = False
+                    return
+
+
+    def fill_wrap(self, order_ids, prices, teams):
         print("started connecting")
-        asyncio.run(client.fill_connector())
+        asyncio.run(client.fill_connector(order_ids, prices, teams))
     
-    def connect_to_fills(self):
-        task = threading.Thread(target=self.fill_wrap())
-        task.start()
-        return task
+    def connect_to_fills(self, order_ids, prices, teams):
+        self.fill_wrap(order_ids, prices, teams)
+        #task = threading.Thread(target=self.fill_wrap, args=(order_ids, prices, teams))
+        #task.start()
+        #return task
 
     def get_opposite_ticker(self, ticker):
         event = ticker.split("-")[0]
         date = ticker.split("-")[1]
         team1 = ticker.split("-")[2]
-        last_date = int([x for x in date if x.isdigit()][-1])
-        teams = date[last_date:]
+        last_date = int([i for i, v in enumerate(date) if v.isdigit()][-1])
+        teams = date[last_date+1:]
         team2 = teams.replace(team1, "")
-        return ("-".join([event,date,team1]), "-".join([event,date,team2]))
+        return "-".join([event,date,team1]), "-".join([event,date,team2])
+
+    def cancel_order(self, order_id):
+        headers = self.get_headers(f"/trade-api/v2/portfolio/orders/{order_id}", "DELETE")
+        order = requests.delete(api_base + f"/trade-api/v2/portfolio/orders/{order_id}", headers=headers).json()
+        return order
 
     def main(self):
         self.menu()
@@ -225,10 +283,27 @@ print(client.get_portfolio())
 #print(client.create_order("sell", "yes", "KXNCAAFGAME-25SEP27USCILL-USC", 70, 5))
 #print(client.create_order("sell", "yes", "KXNCAAFGAME-25SEP27USCILL-ILL", 32, 5))
 #client.connect_to_book("KXNCAAFGAME-25SEP27USCILL-USC")
-ticker = "KXNCAAFGAME-25SEP27USCILL-ILL"
 
-print(client.get_opposite_ticker(ticker))
 
-#print(client.get_queue("KXNCAAFGAME-25SEP27USCILL-ILL"))
 
-client.connect_to_fills()
+ticker = "KXNFLGAME-25SEP28GBDAL-GB"
+
+contracts = 3
+
+
+
+prices = [26, 27, 73, 74]
+
+
+# team1 is same as ticker!
+team1, team2 = client.get_opposite_ticker(ticker)
+
+#team1_buy = client.create_order("buy", "yes", team1, prices[0], contracts)
+#team1_sell = client.create_order("sell", "yes", team1, prices[1], contracts)
+#team2_buy = client.create_order("buy", "yes", team2, prices[2], contracts)
+#team2_sell = client.create_order("sell", "yes", team2, prices[3], contracts)
+#order_ids = [x["order"]["order_id"] for x in [team1_buy, team1_sell, team2_buy, team2_sell]]
+#print(order_ids)
+
+#client.connect_to_fills(order_ids, prices, [team1, team2])
+print(client.get_queue("KXNFLGAME-25SEP28GBDAL-DAL"))
