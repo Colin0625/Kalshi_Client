@@ -247,7 +247,7 @@ class Client():
 
     def fill_wrap(self, order_ids, prices, teams):
         print("started connecting")
-        asyncio.run(client.fill_connector(order_ids, prices, teams))
+        asyncio.run(self.fill_connector(order_ids, prices, teams))
     
     def connect_to_fills(self, order_ids, prices, teams):
         self.fill_wrap(order_ids, prices, teams)
