@@ -45,10 +45,7 @@ def sign_key(path, method, ts):
 
 class Client():
     def __init__(self):
-        self.orderbook_ids = [0]
-        self.orderbooks = []
-        self._running = []
-        self._lock = asyncio.Lock()
+        pass
     
     def get_headers(self, path, method):
         timestamp = str(int(dt.datetime.now().timestamp() * 1000))
@@ -98,42 +95,10 @@ class Client():
         
         async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
             print(f"Connected to order book of {ticker} with id of {my_id}")
-            tick = -1
             await ws.send(msg)
-            occurrence = 0
             while True:
                 raw = await ws.recv()
-                if tick == -1:
-                    tick = 0
-                    pass
-                elif not tick:
-                    my_book = {'id': my_id, 'book': {'yes': [], 'no': []}}
-                    book = json.loads(raw)
-                    my_book['book']['yes'] = book['msg']['yes']
-                    my_book['book']['no'] = book['msg']['no']
-                    self.orderbooks.append(my_book)
-                    tick = 2
-                else:
-                    message = json.loads(raw)
-                    side = message['msg']['side']
-                    price = message['msg']['price']
-                    delta = message['msg']['delta']
-                    for i in self.orderbooks:
-                        if i['id'] == my_id:
-                            found = False
-                            for j, v in enumerate(i['book'][side]):
-                                if v[0] == price:
-                                    found = True
-                                    v[1] += delta
-                                    if v[1] == 0:
-                                        del i['book'][side][j]
-                                    break
-                            if not found:
-                                i['book'][side].append([price, delta])
-                            break
-                    occurrence += 1
-                if verbose:
-                    print(raw)
+                
     
     def wrap(self, ticker):
         print("started connecting")
@@ -144,12 +109,6 @@ class Client():
         task.start()
         return task
 
-    def menu(self):
-        commands = ["-h", "start_book", "start_trade"]
-        x = input("> ")
-        if x == "-h":
-            print(commands)
-            self.menu()
 
     def create_order(self, action: str, side: str, ticker: str, price: int, contracts: int):
         headers = self.get_headers("/trade-api/v2/portfolio/orders", "POST")
@@ -174,7 +133,9 @@ class Client():
         response = requests.get(url, params=query, headers=headers)
         return response.json()
 
-    async def fill_connector(self, order_ids, prices, teams):
+
+
+    async def fill_connector(self):
         msg = json.dumps({
             "id": 0,
             "cmd": "subscribe",
@@ -184,16 +145,11 @@ class Client():
                 ],
             }
         })
-
         headers = self.get_headers("/trade-api/ws/v2", "GET")
         async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
             print(f"Connected to fills")
             await ws.send(msg)
             tick = -1
-            initial = True
-            second = False
-            filled = None
-            contracts = None
             while True:
                 print("Awaiting")
                 raw = await ws.recv()
@@ -203,46 +159,7 @@ class Client():
                 if tick == -1:
                     tick = 0
                     continue
-                if initial and not second:
-                    contracts = raw.get("msg").get("count")
-                    if id == order_ids[0]:
-                        self.cancel_order(order_ids[3])
-                        filled = 0
-                    elif id == order_ids[1]:
-                        self.cancel_order(order_ids[2])
-                        filled = 1
-                    elif id == order_ids[2]:
-                        self.cancel_order(order_ids[1])
-                        filled = 2
-                    elif id == order_ids[3]:
-                        self.cancel_order(order_ids[0])
-                        filled = 3
-                    initial = False
-                    second = True
-
-                if (not initial) and second:
-                    if filled == 0:
-                        if id == order_ids[1]:
-                            return
-                        elif id == order_ids[2]:
-                            self.create_order("sell", "yes", teams[1], prices[3], contracts)
-                    elif filled == 1:
-                        if id == order_ids[0]:
-                            return
-                        elif id == order_ids[3]:
-                            self.create_order("buy", "yes", teams[1], prices[2], contracts)
-                    elif filled == 2:
-                        if id == order_ids[3]:
-                            return
-                        elif id == order_ids[0]:
-                            self.create_order("sell", "yes", teams[0], prices[1], contracts)
-                    elif filled == 3:
-                        if id == order_ids[2]:
-                            return
-                        elif id == order_ids[1]:
-                            self.create_order("buy", "yes", teams[0], prices[0], contracts)
-                    second = False
-                    return
+               
 
 
     def fill_wrap(self, order_ids, prices, teams):
@@ -251,9 +168,6 @@ class Client():
     
     def connect_to_fills(self, order_ids, prices, teams):
         self.fill_wrap(order_ids, prices, teams)
-        #task = threading.Thread(target=self.fill_wrap, args=(order_ids, prices, teams))
-        #task.start()
-        #return task
 
     def get_opposite_ticker(self, ticker):
         event = ticker.split("-")[0]
@@ -269,9 +183,8 @@ class Client():
         order = requests.delete(api_base + f"/trade-api/v2/portfolio/orders/{order_id}", headers=headers).json()
         return order
 
-    def main(self):
-        self.menu()
-    
-    def start(self):
-        self.main()
+    def kill_thread(self, id: int):
+        self._running[id-1] = False
+        return True
+
 
