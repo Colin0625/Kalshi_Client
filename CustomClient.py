@@ -77,7 +77,7 @@ class Client():
         headers = self.get_headers("/trade-api/v2/portfolio/positions", "GET")
         return requests.get(api_base + "/trade-api/v2/portfolio/positions", headers=headers).json()
 
-    async def book_connection(self, ticker):
+    async def book_connection(self, ticker, verbose=False):
         async with self._lock:
             self.orderbook_ids.append(self.orderbook_ids[-1]+1)
             my_id = self.orderbook_ids[-1]
@@ -132,14 +132,15 @@ class Client():
                                 i['book'][side].append([price, delta])
                             break
                     occurrence += 1
-                print(raw)
+                if verbose:
+                    print(raw)
     
     def wrap(self, ticker):
         print("started connecting")
-        asyncio.run(client.book_connection(ticker))
+        asyncio.run(self.book_connection(ticker))
     
     def connect_to_book(self, ticker):
-        task = threading.Thread(target=self.wrap(ticker))
+        task = threading.Thread(target=self.wrap, args=(ticker,))
         task.start()
         return task
 
@@ -150,7 +151,7 @@ class Client():
             print(commands)
             self.menu()
 
-    def create_order(self, action, side, ticker, price, contracts):
+    def create_order(self, action: str, side: str, ticker: str, price: int, contracts: int):
         headers = self.get_headers("/trade-api/v2/portfolio/orders", "POST")
         msg = {
             "client_order_id": str(uuid.uuid4()),
@@ -172,8 +173,3 @@ class Client():
     def start(self):
         self.main()
 
-
-client = Client()
-print(client.get_portfolio())
-
-print(client.create_order("buy", "yes", "KXNCAAFGAME-25SEP26HOUORST-ORST", 20, 1))
