@@ -7,7 +7,6 @@ import uuid
 import time
 import base64
 import threading
-import multiroutine
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
@@ -43,9 +42,58 @@ def sign_key(path, method, ts):
     )
     return base64.b64encode(sig).decode("utf-8")
 
+
+class _book():
+    def __init__(self):
+        self.bids = [0] * 101
+        self.asks = [0] * 101
+        self.best_bid = 0
+        self.best_ask = 0
+    
+    def update_book(self, bid_side: bool, price: int, quantity: int):
+        if bid_side:
+            self.bids[price] += quantity
+        else:
+            self.asks[price] += quantity
+    
+    def initialize_book(self, msg: dict):
+        yes = msg.get('msg').get('yes')
+        no = msg.get('msg').get('no')
+        for i in yes:
+            self.bids[i[0]] = i[1]
+        for i in no:
+            self.asks[100-i[0]] = i[1]
+    
+    def update_best(self, bid_side: bool):
+        if bid_side:
+            biggest = 0
+            for i in range(len(self.bids)):
+                if self.bids[i] > 0:
+                    biggest = i
+            if biggest == 0:
+                self.best_bid = None
+                return
+            self.best_bid = biggest
+        else:
+            for i in range(len(self.asks)):
+                if self.asks[i] > 0:
+                    self.best_ask = i
+                    return
+            self.best_ask = None
+
+        
+
+
+
+
+
 class Client():
     def __init__(self):
-        pass
+        self._connection_ids = []
+        self._connection_tasks = []
+        self._running = []
+        self.books = []
+        self._lock = asyncio.Lock()
     
     def get_headers(self, path, method):
         timestamp = str(int(dt.datetime.now().timestamp() * 1000))
@@ -74,11 +122,17 @@ class Client():
         headers = self.get_headers("/trade-api/v2/portfolio/positions", "GET")
         return requests.get(api_base + "/trade-api/v2/portfolio/positions", headers=headers).json()
 
-    async def book_connection(self, ticker, verbose=False):
+    async def _book_connection(self, ticker, verbose=False):
+        my_id = 0
         async with self._lock:
-            self.orderbook_ids.append(self.orderbook_ids[-1]+1)
-            my_id = self.orderbook_ids[-1]
-            self._running.append(True)
+            if len(self._connection_ids) == 0:
+                self._connection_ids.append(0)
+            else:
+                my_id = self._connection_ids[-1]-1
+                self._connection_ids.append(my_id)
+            self._running.append(False)
+            self.books.append(_book())
+
 
         msg = json.dumps({
             "id": my_id,
@@ -96,16 +150,50 @@ class Client():
         async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
             print(f"Connected to order book of {ticker} with id of {my_id}")
             await ws.send(msg)
-            while True:
+            self._running[my_id] = True
+            
+            while self._running[my_id]:
                 raw = await ws.recv()
+                recieved = json.loads(raw)
+                seq = recieved.get('seq')
+                ms = recieved.get('msg')
+                if seq == 1:
+                    self.books[my_id].initialize_book(recieved)
+                elif not seq == None and seq > 1:
+                    if ms.get('side') == 'yes':
+                        self.books[my_id].update_book(True, ms.get('price'), ms.get('delta'))
+                        self.books[my_id].update_best(True)
+                    elif ms.get('side') == 'no':
+                        self.books[my_id].update_book(False, 100-ms.get('price'), ms.get('delta'))
+                        self.books[my_id].update_best(False)
+                    
+                
+                if verbose:
+                    #print(recieved)
+                    print(f"Bid: {self.books[my_id].best_bid}, Ask: {self.books[my_id].best_ask}")
+                    #print(f"Bids: {self.books[my_id].bids}")
+                    #print(f"Asks: {self.books[my_id].asks}")
+                    #print()
+
                 
     
-    def wrap(self, ticker):
+    def _wrap(self, ticker, verbose=False):
         print("started connecting")
-        asyncio.run(self.book_connection(ticker))
-    
-    def connect_to_book(self, ticker):
-        task = threading.Thread(target=self.wrap, args=(ticker,))
+        asyncio.run(self._book_connection(ticker, verbose))
+
+    def connect_to_book(self, ticker: str, verbose=False):
+        """Connects to a specified orderbook.
+        Returns a threading.Thread() that must be joined.
+
+        Args:
+            ticker (str): Ticker of orderbook.
+            Verbose (bool): boolean that decides if to print messages.
+        
+        Returns:
+            threading.Thread (threading.Thread): Thread object that must be joined.
+        """
+        task = threading.Thread(target=self._wrap, args=(ticker,verbose), daemon=True)
+        self._connection_tasks.append(task)
         task.start()
         return task
 
@@ -132,7 +220,6 @@ class Client():
         url = api_base + "/trade-api/v2/portfolio/orders/queue_positions"
         response = requests.get(url, params=query, headers=headers)
         return response.json()
-
 
 
     async def fill_connector(self):
@@ -169,7 +256,7 @@ class Client():
     def connect_to_fills(self, order_ids, prices, teams):
         self.fill_wrap(order_ids, prices, teams)
 
-    def get_opposite_ticker(self, ticker):
+    def get_both_tickers(self, ticker):
         event = ticker.split("-")[0]
         date = ticker.split("-")[1]
         team1 = ticker.split("-")[2]
