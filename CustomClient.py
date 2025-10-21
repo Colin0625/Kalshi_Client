@@ -115,7 +115,18 @@ class Client():
         self.books = []
         self._lock = asyncio.Lock()
     
-    def get_headers(self, path, method):
+    def _get_headers(self, path, method):
+        f"""Gets the correct authentication header for http request.
+        The path is what is after {api_base}.
+
+        Args:
+            path (str): Https path that comes after {api_base}, starts with '/api_base/v2'.
+            method (str): Type of method used in this call. Typically 'GET' or 'POST'.
+        
+        Returns:
+            headers (dict): Dictionary of correct headers ready to be passed into a requests.get() call.
+        """
+
         timestamp = str(int(dt.datetime.now().timestamp() * 1000))
 
         headers = {
@@ -126,7 +137,7 @@ class Client():
         return headers
     
     def get_portfolio(self):
-        headers = self.get_headers("/trade-api/v2/portfolio/balance", "GET")
+        headers = self._get_headers("/trade-api/v2/portfolio/balance", "GET")
 
         response = requests.get(api_base + "/trade-api/v2/portfolio/balance", headers=headers)
         return response.json()
@@ -139,7 +150,7 @@ class Client():
             return requests.get(f"https://api.elections.kalshi.com/trade-api/v2/markets/{ticker}/orderbook", params=query).json()
 
     def get_positions(self):
-        headers = self.get_headers("/trade-api/v2/portfolio/positions", "GET")
+        headers = self._get_headers("/trade-api/v2/portfolio/positions", "GET")
         return requests.get(api_base + "/trade-api/v2/portfolio/positions", headers=headers).json()
 
     async def _book_connection(self, ticker, verbose=False):
@@ -165,7 +176,7 @@ class Client():
             }
         })
 
-        headers = self.get_headers("/trade-api/ws/v2", "GET")
+        headers = self._get_headers("/trade-api/ws/v2", "GET")
         
         async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
             print(f"Connected to order book of {ticker} with id of {my_id}")
@@ -179,6 +190,8 @@ class Client():
                 ms = recieved.get('msg')
                 if seq == 1:
                     self.books[my_id].initialize_book(recieved)
+                    self.books[my_id].update_best(True)
+                    self.books[my_id].update_best(False)
                 elif not seq == None and seq > 1:
                     if ms.get('side') == 'yes':
                         self.books[my_id].update_book(True, ms.get('price'), ms.get('delta'))
@@ -203,14 +216,14 @@ class Client():
 
     def connect_to_book(self, ticker: str, verbose=False):
         """Connects to a specified orderbook.
-        Returns a threading.Thread() that must be joined.
+        Returns a daemon threading.Thread()
 
         Args:
             ticker (str): Ticker of orderbook.
             Verbose (bool): boolean that decides if to print messages.
         
         Returns:
-            threading.Thread (threading.Thread): Thread object that must be joined.
+            threading.Thread (threading.Thread): daemon Thread object.
         """
         task = threading.Thread(target=self._wrap, args=(ticker,verbose), daemon=True)
         self._connection_tasks.append(task)
@@ -219,7 +232,7 @@ class Client():
 
 
     def create_order(self, action: str, side: str, ticker: str, price: int, contracts: int):
-        headers = self.get_headers("/trade-api/v2/portfolio/orders", "POST")
+        headers = self._get_headers("/trade-api/v2/portfolio/orders", "POST")
         msg = {
             "client_order_id": str(uuid.uuid4()),
             "action": action,
@@ -235,7 +248,7 @@ class Client():
         return order
 
     def get_queue(self, ticker):
-        headers = self.get_headers("/trade-api/v2/portfolio/orders/queue_positions", "GET")
+        headers = self._get_headers("/trade-api/v2/portfolio/orders/queue_positions", "GET")
         query = {"market_tickers": [ticker]}
         url = api_base + "/trade-api/v2/portfolio/orders/queue_positions"
         response = requests.get(url, params=query, headers=headers)
@@ -252,7 +265,7 @@ class Client():
                 ],
             }
         })
-        headers = self.get_headers("/trade-api/ws/v2", "GET")
+        headers = self._get_headers("/trade-api/ws/v2", "GET")
         async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
             print(f"Connected to fills")
             await ws.send(msg)
@@ -269,12 +282,22 @@ class Client():
                
 
 
-    def fill_wrap(self, order_ids, prices, teams):
+    def fill_wrap(self):
         print("started connecting")
-        asyncio.run(self.fill_connector(order_ids, prices, teams))
+        asyncio.run(self.fill_connector())
     
-    def connect_to_fills(self, order_ids, prices, teams):
-        self.fill_wrap(order_ids, prices, teams)
+    def connect_to_fills(self):
+        """Connects to fill websockets.
+        Returns a threading.Thread() that must be joined.
+
+        Args:
+            ticker (str): Ticker of orderbook.
+            Verbose (bool): boolean that decides if to print messages.
+        
+        Returns:
+            threading.Thread (threading.Thread): Thread object that must be joined.
+        """
+        self.fill_wrap()
 
     def get_both_tickers(self, ticker):
         event = ticker.split("-")[0]
@@ -286,9 +309,18 @@ class Client():
         return "-".join([event,date,team1]), "-".join([event,date,team2])
 
     def cancel_order(self, order_id):
-        headers = self.get_headers(f"/trade-api/v2/portfolio/orders/{order_id}", "DELETE")
+        headers = self._get_headers(f"/trade-api/v2/portfolio/orders/{order_id}", "DELETE")
         order = requests.delete(api_base + f"/trade-api/v2/portfolio/orders/{order_id}", headers=headers).json()
         return order
+    
+    def update_order(self, order_id):
+        pass
+
+    def get_order_info(self, order_id):
+        url = f"/trade-api/v2/portfolio/orders/{order_id}"
+        headers = self._get_headers(url, "GET")
+        return requests.get(api_base+url, headers=headers)
+
 
     def kill_thread(self, id: int):
         self._running[id-1] = False
