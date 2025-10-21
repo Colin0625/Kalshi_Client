@@ -47,8 +47,10 @@ class _book():
     def __init__(self):
         self.bids = [0] * 101
         self.asks = [0] * 101
-        self.best_bid = 0
-        self.best_ask = 0
+        self.best_bid = None
+        self.best_ask = None
+        self.best_bid_quantity = None
+        self.best_ask_quantity = None
     
     def update_book(self, bid_side: bool, price: int, quantity: int):
         if bid_side:
@@ -72,14 +74,32 @@ class _book():
                     biggest = i
             if biggest == 0:
                 self.best_bid = None
+                self.best_bid_quantity = None
                 return
             self.best_bid = biggest
+            self.best_bid_quantity = self.bids[i]
         else:
             for i in range(len(self.asks)):
                 if self.asks[i] > 0:
                     self.best_ask = i
+                    self.best_ask_quantity = self.asks[i]
                     return
             self.best_ask = None
+
+    def calc_real_mid(self, depth=5):
+        if self.best_ask == None or self.best_bid == None:
+            return -1
+        ask_num = [x for x in self.asks[self.best_ask:self.best_ask+depth+1]]
+        bid_num = [x for x in self.bids[self.best_bid-depth:self.best_bid+1]]
+
+        ask_ps = list(range(self.best_ask, self.best_ask+depth+1))
+        bid_ps = list(range(self.best_bid-depth, self.best_bid+1))
+        num = sum([bid_ps[-1-x]*ask_num[x]*((x+1)**-1) for x in range(depth)]) + sum([ask_ps[x]*bid_num[-1-x]*((x+1)**-1) for x in range(depth)])
+        den = sum([((x+1)**-1)*(bid_num[-1-x]+ask_num[x]) for x in range(depth)])
+        return num/den
+
+        
+
 
         
 
@@ -169,8 +189,8 @@ class Client():
                     
                 
                 if verbose:
-                    #print(recieved)
-                    print(f"Bid: {self.books[my_id].best_bid}, Ask: {self.books[my_id].best_ask}")
+                    print(recieved)
+                    #print(f"Bid: {self.books[my_id].best_bid}, Ask: {self.books[my_id].best_ask}")
                     #print(f"Bids: {self.books[my_id].bids}")
                     #print(f"Asks: {self.books[my_id].asks}")
                     #print()
