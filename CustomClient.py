@@ -51,6 +51,7 @@ class _book():
         self.best_ask = None
         self.best_bid_quantity = None
         self.best_ask_quantity = None
+        self.current_spread = None
     
     def update_book(self, bid_side: bool, price: int, quantity: int):
         if bid_side:
@@ -78,11 +79,15 @@ class _book():
                 return
             self.best_bid = biggest
             self.best_bid_quantity = int(self.bids[biggest])
+            if not self.best_ask == None:
+                self.current_spread = self.best_ask - biggest
         else:
             for i in range(len(self.asks)):
                 if self.asks[i] > 0:
                     self.best_ask = i
                     self.best_ask_quantity = int(self.asks[i])
+                    if not self.best_bid == None:
+                        self.current_spread = i - self.best_bid
                     return
             self.best_ask = None
 
