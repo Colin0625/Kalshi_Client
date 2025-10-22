@@ -116,11 +116,11 @@ class Client():
         self._lock = asyncio.Lock()
     
     def _get_headers(self, path, method):
-        f"""Gets the correct authentication header for http request.
-        The path is what is after {api_base}.
+        """Gets the correct authentication header for http request.
+        The path is what is after https://api.elections.kalshi.com.
 
         Args:
-            path (str): Https path that comes after {api_base}, starts with '/api_base/v2'.
+            path (str): Https path that comes after https://api.elections.kalshi.com, starts with '/api_base/v2'.
             method (str): Type of method used in this call. Typically 'GET' or 'POST'.
         
         Returns:
@@ -188,6 +188,8 @@ class Client():
                 recieved = json.loads(raw)
                 seq = recieved.get('seq')
                 ms = recieved.get('msg')
+                if seq == None:
+                    print(recieved)
                 if seq == 1:
                     self.books[my_id].initialize_book(recieved)
                     self.books[my_id].update_best(True)
@@ -211,7 +213,7 @@ class Client():
                 
     
     def _wrap(self, ticker, verbose=False):
-        print("started connecting")
+        print(f"started connecting to orderbook of {ticker}")
         asyncio.run(self._book_connection(ticker, verbose))
 
     def connect_to_book(self, ticker: str, verbose=False):
