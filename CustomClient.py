@@ -77,12 +77,12 @@ class _book():
                 self.best_bid_quantity = None
                 return
             self.best_bid = biggest
-            self.best_bid_quantity = self.bids[i]
+            self.best_bid_quantity = int(self.bids[biggest])
         else:
             for i in range(len(self.asks)):
                 if self.asks[i] > 0:
                     self.best_ask = i
-                    self.best_ask_quantity = self.asks[i]
+                    self.best_ask_quantity = int(self.asks[i])
                     return
             self.best_ask = None
 
