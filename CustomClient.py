@@ -91,7 +91,7 @@ class _book():
                     return
             self.best_ask = None
 
-    def calc_real_mid(self, depth=5):
+    def calc_real_mid(self, depth=2):
         if self.best_ask == None or self.best_bid == None:
             return -1
         ask_num = [x for x in self.asks[self.best_ask:self.best_ask+depth+1]]
@@ -99,8 +99,8 @@ class _book():
 
         ask_ps = list(range(self.best_ask, self.best_ask+depth+1))
         bid_ps = list(range(self.best_bid-depth, self.best_bid+1))
-        num = sum([bid_ps[-1-x]*ask_num[x]*((x+1)**-1) for x in range(depth)]) + sum([ask_ps[x]*bid_num[-1-x]*((x+1)**-1) for x in range(depth)])
-        den = sum([((x+1)**-1)*(bid_num[-1-x]+ask_num[x]) for x in range(depth)])
+        num = sum([bid_ps[-1-x]*ask_num[x]*((x+1)**-2) for x in range(depth)]) + sum([ask_ps[x]*bid_num[-1-x]*((x+1)**-2) for x in range(depth)])
+        den = sum([((x+1)**-2)*(bid_num[-1-x]+ask_num[x]) for x in range(depth)])
         return num/den
 
         
@@ -262,7 +262,7 @@ class Client():
         return response.json()
 
 
-    async def fill_connector(self):
+    async def fill_connector(self, verbose, callback, **kwargs):
         msg = json.dumps({
             "id": 0,
             "cmd": "subscribe",
@@ -276,35 +276,35 @@ class Client():
         async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
             print(f"Connected to fills")
             await ws.send(msg)
-            tick = -1
             while True:
-                print("Awaiting")
                 raw = await ws.recv()
-                print(f"Raw: {raw}")
-                raw = json.loads(raw)
-                id = raw.get("msg").get("order_id")
-                if tick == -1:
-                    tick = 0
-                    continue
+                if callback:
+                    callback(json.loads(raw), **kwargs)
+                if verbose:
+                    print(raw)
+                
                
 
 
-    def fill_wrap(self):
-        print("started connecting")
-        asyncio.run(self.fill_connector())
+    def fill_wrap(self, verbose, callback, **kwargs):
+        print("Started connecting to Fills websocket")
+        asyncio.run(self.fill_connector(verbose, callback, **kwargs))
     
-    def connect_to_fills(self):
+    def connect_to_fills(self, verbose=False, callback=None, **kwargs):
         """Connects to fill websockets.
         Returns a threading.Thread() that must be joined.
 
         Args:
-            ticker (str): Ticker of orderbook.
-            Verbose (bool): boolean that decides if to print messages.
+            callback (func): Callback function to be called when a new message is recieved
+            verbose (bool): boolean that decides if to print messages.
         
         Returns:
-            threading.Thread (threading.Thread): Thread object that must be joined.
+            threading.Thread (threading.Thread): Daemon thread object.
         """
-        self.fill_wrap()
+        task = threading.Thread(target=self.fill_wrap, args=(verbose, callback), kwargs=kwargs, daemon=True)
+        task.start()
+        return task
+
 
     def get_both_tickers(self, ticker):
         event = ticker.split("-")[0]
