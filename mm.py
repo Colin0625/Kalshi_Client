@@ -23,11 +23,14 @@ print(f"Client started, portfolio snapshot: {port}")
 
 
 
-ticker = "KXNFLGAME-25OCT23MINLAC-MIN"
+ticker = "KXNBAGAME-25OCT23DENGSW-DEN"
 
 team1, team2 = client.get_both_tickers(ticker)
 
-
+def make_orders():
+    print(client.create_order('buy', 'yes', te, client.books[0].best_bid, 7))
+    print()
+    print(client.create_order('sell', 'yes', te, client.books[0].best_ask, 7))
 
 te = team2
 
@@ -36,9 +39,7 @@ te = team2
 book0 = client.connect_to_book(te, False)
 time.sleep(2)
 print()
-print(client.create_order('buy', 'yes', te, client.books[0].best_bid, 5))
-print()
-print(client.create_order('sell', 'yes', te, client.books[0].best_ask, 5))
+make_orders()
 print()
 
 t = time.perf_counter()
@@ -55,7 +56,11 @@ client.connect_to_fills(False, fire, msg="yo wassup")
 c = 0
 
 while True:
-    pass
+    x = input(">>> ")
+    if x == 'buy':
+        make_orders()
+    elif x == 'exit':
+        break
     """if time.perf_counter()-t > 1/4:
         t = time.perf_counter()
         #print(client.books[0].best_bid)
