@@ -61,11 +61,11 @@ print(f"Client started, portfolio snapshot: {port}")
 
 
 
-ticker = "KXNCAAFGAME-25OCT24BSUNEV-BSU"
+ticker = "KXNCAAFGAME-25OCT25MISSOKLA-OKLA"
 
 team1, team2 = client.get_both_tickers(ticker)
 
-team = team1
+team = team2
 
 
 task, book = client.connect_to_book(team, False)
