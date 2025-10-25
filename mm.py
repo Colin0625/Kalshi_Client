@@ -110,7 +110,7 @@ while True:
                 if quotes[0] == None:
                     quotes[0] = client.create_order('buy', 'yes', team, book.best_bid, 7)
                 if quotes[1] == None:
-                    quotes[1] = client.create_order('sell', 'yes', team, book.best_bid, 7)
+                    quotes[1] = client.create_order('sell', 'yes', team, book.best_ask, 7)
 
 
         print()
