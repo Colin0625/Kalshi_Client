@@ -44,7 +44,7 @@ def sign_key(path, method, ts):
 
 
 class _book():
-    def __init__(self):
+    def __init__(self, ticker):
         self.bids = [0] * 101
         self.asks = [0] * 101
         self.best_bid = None
@@ -52,6 +52,7 @@ class _book():
         self.best_bid_quantity = None
         self.best_ask_quantity = None
         self.current_spread = None
+        self.ticker = ticker
     
     def update_book(self, bid_side: bool, price: int, quantity: int):
         if bid_side:
@@ -91,7 +92,7 @@ class _book():
                     return
             self.best_ask = None
 
-    def calc_real_mid(self, depth=2):
+    def get_microprice(self, depth=2, weight=-2):
         if self.best_ask == None or self.best_bid == None:
             return -1
         ask_num = [x for x in self.asks[self.best_ask:self.best_ask+depth+1]]
@@ -99,8 +100,8 @@ class _book():
 
         ask_ps = list(range(self.best_ask, self.best_ask+depth+1))
         bid_ps = list(range(self.best_bid-depth, self.best_bid+1))
-        num = sum([bid_ps[-1-x]*ask_num[x]*((x+1)**-2) for x in range(depth)]) + sum([ask_ps[x]*bid_num[-1-x]*((x+1)**-2) for x in range(depth)])
-        den = sum([((x+1)**-2)*(bid_num[-1-x]+ask_num[x]) for x in range(depth)])
+        num = sum([bid_ps[-1-x]*ask_num[x]*((x+1)**weight) for x in range(depth)]) + sum([ask_ps[x]*bid_num[-1-x]*((x+1)**weight) for x in range(depth)])
+        den = sum([((x+1)**weight)*(bid_num[-1-x]+ask_num[x]) for x in range(depth)])
         return num/den
 
         
@@ -158,7 +159,7 @@ class Client():
         headers = self._get_headers("/trade-api/v2/portfolio/positions", "GET")
         return requests.get(api_base + "/trade-api/v2/portfolio/positions", headers=headers).json()
 
-    async def _book_connection(self, ticker, verbose=False):
+    async def _book_connection(self, ticker, verbose):
         my_id = 0
         async with self._lock:
             if len(self._connection_ids) == 0:
@@ -167,7 +168,8 @@ class Client():
                 my_id = self._connection_ids[-1]-1
                 self._connection_ids.append(my_id)
             self._running.append(False)
-            self.books.append(_book())
+            b = _book(ticker)
+            self.books.append(b)
 
 
         msg = json.dumps({
@@ -182,7 +184,6 @@ class Client():
         })
 
         headers = self._get_headers("/trade-api/ws/v2", "GET")
-        
         async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
             print(f"Connected to order book of {ticker} with id of {my_id}")
             await ws.send(msg)
@@ -215,13 +216,11 @@ class Client():
                     #print(f"Asks: {self.books[my_id].asks}")
                     #print()
 
-                
-    
-    def _wrap(self, ticker, verbose=False):
+    def _wrap(self, ticker, verbose):
         print(f"started connecting to orderbook of {ticker}")
         asyncio.run(self._book_connection(ticker, verbose))
 
-    def connect_to_book(self, ticker: str, verbose=False):
+    def connect_to_book(self, ticker: str, verbose=False) -> tuple[None, _book]:
         """Connects to a specified orderbook.
         Returns a daemon threading.Thread()
 
@@ -235,7 +234,14 @@ class Client():
         task = threading.Thread(target=self._wrap, args=(ticker,verbose), daemon=True)
         self._connection_tasks.append(task)
         task.start()
-        return task
+        while True:
+            try:
+                if self.books[-1].ticker == ticker:
+                    break
+            except:
+                pass
+
+        return (task, self.books[-1])
 
 
     def create_order(self, action: str, side: str, ticker: str, price: int, contracts: int):
@@ -254,13 +260,17 @@ class Client():
         order = requests.post(api_base + "/trade-api/v2/portfolio/orders", json=msg, headers=headers).json()
         return order
 
-    def get_queue(self, ticker):
+    def get_queues(self, ticker):
         headers = self._get_headers("/trade-api/v2/portfolio/orders/queue_positions", "GET")
         query = {"market_tickers": [ticker]}
         url = api_base + "/trade-api/v2/portfolio/orders/queue_positions"
         response = requests.get(url, params=query, headers=headers)
         return response.json()
 
+    def get_order_queue(self, order_id):
+        url = f"/trade-api/v2/portfolio/orders/{order_id}/queue_position"
+        headers = self._get_headers(url, "GET")
+        return requests.get(api_base+url, headers=headers).json()
 
     async def fill_connector(self, verbose, callback, **kwargs):
         msg = json.dumps({
@@ -282,9 +292,6 @@ class Client():
                     callback(json.loads(raw), **kwargs)
                 if verbose:
                     print(raw)
-                
-               
-
 
     def fill_wrap(self, verbose, callback, **kwargs):
         print("Started connecting to Fills websocket")
@@ -304,7 +311,6 @@ class Client():
         task = threading.Thread(target=self.fill_wrap, args=(verbose, callback), kwargs=kwargs, daemon=True)
         task.start()
         return task
-
 
     def get_both_tickers(self, ticker):
         event = ticker.split("-")[0]
