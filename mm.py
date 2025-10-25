@@ -104,8 +104,8 @@ while True:
         print(list(drift_queue)[-3:])
         if len(slope_queue) == 10:
             slopes.append(get_slope(slope_queue))
-            print(f"Slope: {slopes[-1]}")
-            print(f"Drift: {drift_queue[-1] - drift_queue[0]}")
+            print(f"Slope: {round(slopes[-1], 5)}")
+            print(f"Drift: {round(drift_queue[-1] - drift_queue[0], 5)}")
             if len(slopes) == 50:
                 if quotes[0] == None:
                     quotes[0] = client.create_order('buy', 'yes', team, book.best_bid, 7)
