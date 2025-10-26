@@ -258,6 +258,7 @@ class Client():
         elif side == "no":
             msg["no_price"] = price
         order = requests.post(api_base + "/trade-api/v2/portfolio/orders", json=msg, headers=headers).json()
+        print(order)
         return order
 
     def get_queues(self, ticker):
@@ -288,9 +289,10 @@ class Client():
             await ws.send(msg)
             while True:
                 raw = await ws.recv()
-                if callback:
-                    callback(json.loads(raw), **kwargs)
-                if verbose:
+                loaded = json.loads(raw)
+                if callback and loaded.get('type') == 'fill':
+                    callback(loaded, **kwargs)
+                if verbose or loaded.get('type') == 'subscirbed':
                     print(raw)
 
     def fill_wrap(self, verbose, callback, **kwargs):
