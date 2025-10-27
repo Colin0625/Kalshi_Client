@@ -73,11 +73,11 @@ print(f"Client started, portfolio snapshot: {port}")
 
 
 
-ticker = "KXNCAAFGAME-25OCT25MIZZVAN-VAN"
+ticker = "KXNFLGAME-25OCT26GBPIT-GB"
 
 team1, team2 = client.get_both_tickers(ticker)
 
-team = team2
+team = team1
 
 
 task, book = client.connect_to_book(team, False)
@@ -109,7 +109,7 @@ counter = 0
 
 t = time.perf_counter()
 while True:
-    if time.perf_counter() - t >= 0.01:
+    if time.perf_counter() - t >= 0.1:
         t = time.perf_counter()
         # Every tenth of a second
 
@@ -124,8 +124,11 @@ while True:
         print(f"Midprice: {round(mid, 5)}, Bid: {round(book.best_bid, 5)}, Ask: {round(book.best_ask, 5)}")
         print(f"Microprice: {round(micro, 5)}")
         print(f"Imbalance: {round(imbalance, 5)}")
+        print(f"Bids: {book.best_bid_quantity}, Asks: {book.best_ask_quantity}, Total: {book.best_bid_quantity+book.best_ask_quantity}")
+        #print(f"")
         if len(slope_queue) == 10:
-            slopes.append(get_slope(slope_queue)*10)
+            slope = get_slope(slope_queue)*10
+            slopes.append(slope)
             print(f"Slope: {round(slopes[-1], 5)}")
             drift = drift_queue[-1] - drift_queue[0]
             print(f"Drift: {round(drift, 5)}")
@@ -137,51 +140,9 @@ while True:
                 print(f"Mean: {round(mean, 5)}, Std: {round(std, 5)}, Z score: {round(z_score, 5)}")
                 print(quote_ids)
                 print(quote_quantities)
-                print(f"Time to calculate all: {time.perf_counter() - t}")
-                exit()
-                if abs(z_score) > 2 and abs(drift) > 0.25:
-                    print("----------------- MOVING!")
                 
-                else:
-                    print("Could go")
-                    if not quote_ids[0] and not quote_ids[1]:
-                        print("currently going")
-                        bid = book.best_bid
-                        ask = book.best_ask
-                        spread = ask - bid
-                        if spread == 1:
-                            print("option 1")
-                            quote_ids[0] = client.create_order('buy', 'yes', team, bid, 7).get('order').get('order_id')
-                            quote_ids[1] = client.create_order('sell', 'yes', team, ask, 7).get('order').get('order_id')
-                            quotes[0] = bid
-                            quotes[1] = ask
-                            quote_quantities[0] = 7
-                            quote_quantities[1] = 7
-                        if spread == 2:
-                            if imbalance < 0.25:
-                                print("option 2")
-                                quote_ids[0] = client.create_order('buy', 'yes', team, bid, 7).get('order').get('order_id')
-                                quote_ids[1] = client.create_order('sell', 'yes', team, ask-1, 7).get('order').get('order_id')
-                                quotes[0] = bid
-                                quotes[1] = ask-1
-                                quote_quantities[0] = 7
-                                quote_quantities[1] = 7
-                            elif imbalance > 0.75:
-                                print("option 3")
-                                quote_ids[0] = client.create_order('buy', 'yes', team, bid+1, 7).get('order').get('order_id')
-                                quote_ids[1] = client.create_order('sell', 'yes', team, ask, 7).get('order').get('order_id')
-                                quotes[0] = bid+1
-                                quotes[1] = ask
-                                quote_quantities[0] = 7
-                                quote_quantities[1] = 7
-                            else:
-                                print("option 4")
-                                quote_ids[0] = client.create_order('buy', 'yes', team, bid, 7).get('order').get('order_id')
-                                quote_ids[1] = client.create_order('sell', 'yes', team, ask, 7).get('order').get('order_id')
-                                quotes[0] = bid
-                                quotes[1] = ask
-                                quote_quantities[0] = 7
-                                quote_quantities[1] = 7
+                
+                
                         
 
         print()
