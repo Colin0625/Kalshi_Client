@@ -61,7 +61,21 @@ def update_inventory(event: dict):
     print()
 
 
-
+def liquidate(inv):
+    global inventory
+    global quote_ids
+    global quote_quantities
+    global quotes
+    if inv == 0:
+        return 0
+    elif inv < 0:
+        client.create_order('buy', 'yes', team, book.best_ask, abs(inv))
+    else:
+        client.create_order('sell', 'yes', ticker, book.best_bid, abs(inv))
+    inventory = 0
+    quote_ids = [None, None]
+    quotes = [0, 0]
+    quote_quantities = [0,0]
 
 
 
@@ -73,7 +87,7 @@ print(f"Client started, portfolio snapshot: {port}")
 
 
 
-ticker = "KXNFLGAME-25OCT26GBPIT-GB"
+ticker = "KXNBAGAME-25OCT27PORLAL-POR"
 
 team1, team2 = client.get_both_tickers(ticker)
 
@@ -94,6 +108,8 @@ inventory = 0
 quote_ids = [None, None]
 quotes = [0, 0]
 quote_quantities = [0, 0]
+
+
 
 bull_persistence = 0
 bear_persistence = 0
