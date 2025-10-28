@@ -61,26 +61,40 @@ def update_inventory(event: dict):
     print()
 
 
-def liquidate(inv):
+def liquidate():
     global inventory
     global quote_ids
     global quote_quantities
     global quotes
-    if inv == 0:
+    if inventory == 0:
         return 0
-    elif inv < 0:
-        client.create_order('buy', 'yes', team, book.best_ask, abs(inv))
+    elif inventory < 0:
+        client.create_order('buy', 'yes', team, book.best_ask, abs(inventory))
     else:
-        client.create_order('sell', 'yes', ticker, book.best_bid, abs(inv))
+        client.create_order('sell', 'yes', ticker, book.best_bid, abs(inventory))
     inventory = 0
     quote_ids = [None, None]
     quotes = [0, 0]
     quote_quantities = [0,0]
 
 
-def update_trades(msg):
-    print(msg)
+def update_trades(msg: dict):
+    global tracked_yes_trades
+    global tracked_no_trades
+    if msg.get('type') == 'subscribed':
+        print(f"Message from trade >> {msg}")
+    else:
+        side = msg.get('msg').get("taker_side")
+        print(f"Message from trade >> Taker Side: {side}, Price: {msg.get('msg').get(f'{side}_price')}, Quantity: {msg.get("msg").get("count")}, Total: ${(msg.get('msg').get(f'{side}_price') * msg.get("msg").get("count")) / 100:.2f}")
+    
+        if side == 'yes':
+            tracked_yes_trades.append(msg.get("msg").get("count"))
+        else:
+            tracked_no_trades.append(msg.get("msg").get("count"))
 
+
+def count_trades(lis):
+    return sum(lis)
 
 
 
@@ -91,7 +105,7 @@ print(f"Client started, portfolio snapshot: {port}")
 
 
 
-ticker = "KXNBAGAME-25OCT27PORLAL-POR"
+ticker = "KXNHLGAME-25OCT28CGYTOR-CGY"
 
 team1, team2 = client.get_both_tickers(ticker)
 
@@ -113,6 +127,14 @@ inventory = 0
 quote_ids = [None, None]
 quotes = [0, 0]
 quote_quantities = [0, 0]
+
+
+tracked_yes_trades = []
+tracked_no_trades = []
+
+
+yes_trades_queue = deque(maxlen=50)
+no_trades_queue = deque(maxlen=50)
 
 
 
@@ -158,9 +180,18 @@ while True:
                 mean = sum(slopes)/len(slopes)
                 std = max(math.sqrt((sum([(x-mean)**2 for x in slopes])) / (len(slopes)-1)), 0.001)
                 z_score = (slopes[-1] - mean) / std
+
+                yes_trades_queue.append(count_trades(tracked_yes_trades))
+                no_trades_queue.append(count_trades(tracked_no_trades))
+                tracked_yes_trades = []
+                tracked_no_trades = []
+
+
                 print(f"Mean: {round(mean, 5)}, Std: {round(std, 5)}, Z score: {round(z_score, 5)}")
                 print(quote_ids)
                 print(quote_quantities)
+                print(f"Trades over last 5 seconds >> Yes: {sum(list(yes_trades_queue))}, No: {sum(list(no_trades_queue))}, Ratio (y:n): {sum(list(yes_trades_queue))/max(sum(list(no_trades_queue)), 0.1)}")
+                
                 
                 
                 

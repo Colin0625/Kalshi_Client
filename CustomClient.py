@@ -320,14 +320,13 @@ class Client():
             "cmd": "subscribe",
             "params": {
                 "channels": [
-                "orderbook_delta"
+                "trade"
                 ],
                 "market_tickers": [ticker]
             }
         })
-        url = "/trade-api/ws/v2"
-        headers = self._get_headers(url, "GET")
-        async with cl.connect(api_base+url, extra_headers=headers) as ws:
+        headers = self._get_headers("/trade-api/ws/v2", "GET")
+        async with cl.connect("wss://api.elections.kalshi.com/trade-api/ws/v2", extra_headers=headers) as ws:
             print("Connected to Trades")
             await ws.send(msg)
             while True:
