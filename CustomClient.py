@@ -275,7 +275,7 @@ class Client():
 
     async def fill_connector(self, verbose, callback, **kwargs):
         msg = json.dumps({
-            "id": 0,
+            "id": 1,
             "cmd": "subscribe",
             "params": {
                 "channels": [
@@ -311,6 +311,35 @@ class Client():
             threading.Thread (threading.Thread): Daemon thread object.
         """
         task = threading.Thread(target=self.fill_wrap, args=(verbose, callback), kwargs=kwargs, daemon=True)
+        task.start()
+        return task
+
+    async def _trade_connector(self, ticker, callback, **kwargs):
+        msg = json.dumps({
+            "id": 2,
+            "cmd": "subscribe",
+            "params": {
+                "channels": [
+                "orderbook_delta"
+                ],
+                "market_tickers": [ticker]
+            }
+        })
+        url = "/trade-api/ws/v2"
+        headers = self._get_headers(url, "GET")
+        async with cl.connect(api_base+url, extra_headers=headers) as ws:
+            print("Connected to Trades")
+            await ws.send(msg)
+            while True:
+                raw = await ws.recv()
+                loaded = json.loads(raw)
+                callback(msg=loaded)
+
+    def _trade_wrap(self, ticker, callback, **kwargs):
+        asyncio.run(self._trade_connector(ticker, callback, **kwargs))
+    
+    def connect_to_trade(self, ticker, callback, **kwargs):
+        task = threading.Thread(target=self._trade_wrap, args=(ticker, callback), kwargs=kwargs, daemon=True)
         task.start()
         return task
 

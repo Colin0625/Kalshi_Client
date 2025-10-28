@@ -61,7 +61,8 @@ def update_inventory(event: dict):
     print()
 
 
-
+def update_trades(msg):
+    print(msg)
 
 
 
@@ -86,7 +87,8 @@ time.sleep(0.5)
 client.connect_to_fills(False, update_inventory)
 time.sleep(1)
 
-
+client.connect_to_trade(team, update_trades)
+time.sleep(0.5)
 
 
 
