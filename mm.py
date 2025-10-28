@@ -78,6 +78,10 @@ def liquidate(inv):
     quote_quantities = [0,0]
 
 
+def update_trades(msg):
+    print(msg)
+
+
 
 
 client = cc.Client()
@@ -100,7 +104,8 @@ time.sleep(0.5)
 client.connect_to_fills(False, update_inventory)
 time.sleep(1)
 
-
+client.connect_to_trade(team, update_trades)
+time.sleep(0.5)
 
 
 
