@@ -5,6 +5,7 @@ import asyncio
 from collections import deque
 import math
 import pandas
+import matplotlib.pyplot as plt
 
 
 def calculate_fees(price, contracts):
@@ -105,21 +106,14 @@ print(f"Client started, portfolio snapshot: {port}")
 
 
 
-ticker = "KXNHLGAME-25OCT28CGYTOR-CGY"
+ticker = "KXBTCD-25OCT3019-T107499.99"
 
 team1, team2 = client.get_both_tickers(ticker)
 
 team = team1
 
 
-task, book = client.connect_to_book(team, False)
-time.sleep(0.5)
 
-client.connect_to_fills(False, update_inventory)
-time.sleep(1)
-
-client.connect_to_trade(team, update_trades)
-time.sleep(0.5)
 
 
 
@@ -138,6 +132,21 @@ no_trades_queue = deque(maxlen=50)
 
 
 
+
+
+
+
+task, book = client.connect_to_book(team, False)
+time.sleep(0.1)
+
+client.connect_to_fills(False, update_inventory)
+time.sleep(0.1)
+
+client.connect_to_trade(team, update_trades)
+time.sleep(2)
+
+
+
 bull_persistence = 0
 bear_persistence = 0
 
@@ -149,15 +158,36 @@ slopes = deque(maxlen=50)
 counter = 0
 
 
+midprice_tracker = []
+microprice_tracker = []
+imbalance_tracker = []
+slope_tracker = []
+z_tracker = []
+drift_tracker = []
+ratio_tracker = []
 
+yes_tracker = []
+no_tracker = []
+
+
+
+
+
+
+
+minutes_to_run = 0.2
+
+start_time = 0
 t = time.perf_counter()
 while True:
+    if start_time and time.perf_counter() - start_time >= minutes_to_run*60:
+        break
     if time.perf_counter() - t >= 0.1:
         t = time.perf_counter()
         # Every tenth of a second
 
         mid = (book.best_ask + book.best_bid) / 2
-        micro = book.get_microprice()
+        micro = book.get_microprice(depth=1)
 
         imbalance = book.best_bid_quantity / (book.best_bid_quantity + book.best_ask_quantity)
 
@@ -176,21 +206,43 @@ while True:
             drift = drift_queue[-1] - drift_queue[0]
             print(f"Drift: {round(drift, 5)}")
             if len(slopes) == 50:
+                if not start_time:
+                    start_time = time.perf_counter()
                 calc_time = time.perf_counter()
                 mean = sum(slopes)/len(slopes)
                 std = max(math.sqrt((sum([(x-mean)**2 for x in slopes])) / (len(slopes)-1)), 0.001)
                 z_score = (slopes[-1] - mean) / std
 
-                yes_trades_queue.append(count_trades(tracked_yes_trades))
-                no_trades_queue.append(count_trades(tracked_no_trades))
+
+                yesses = count_trades(tracked_yes_trades)
+                nos = count_trades(tracked_no_trades)
+                yes_trades_queue.append(yesses)
+                no_trades_queue.append(nos)
                 tracked_yes_trades = []
                 tracked_no_trades = []
+
+                ratio = sum(list(yes_trades_queue))/max(sum(list(no_trades_queue)), 0.1)
+
+
+                midprice_tracker.append(mid)
+                microprice_tracker.append(micro)
+                imbalance_tracker.append(imbalance)
+                slope_tracker.append(slope)
+                z_tracker.append(z_score)
+                drift_tracker.append(drift)
+                ratio_tracker.append(ratio)
+
+                yes_tracker.append(yesses)
+                no_tracker.append(nos)
+
+
 
 
                 print(f"Mean: {round(mean, 5)}, Std: {round(std, 5)}, Z score: {round(z_score, 5)}")
                 print(quote_ids)
                 print(quote_quantities)
-                print(f"Trades over last 5 seconds >> Yes: {sum(list(yes_trades_queue))}, No: {sum(list(no_trades_queue))}, Ratio (y:n): {sum(list(yes_trades_queue))/max(sum(list(no_trades_queue)), 0.1)}")
+                print(f"Trades over last 5 seconds >> Yes: {sum(list(yes_trades_queue))}, No: {sum(list(no_trades_queue))}, Ratio (y:n): {ratio}")
+                print(f"Time since starting timer: {time.perf_counter()-start_time}")
                 
                 
                 
@@ -198,3 +250,91 @@ while True:
                         
 
         print()
+
+
+# print(microprice_tracker)
+# print(midprice_tracker)
+# print(imbalance_tracker)
+# print(slope_tracker)
+# print(z_tracker)
+# print(drift_tracker)
+# print(ratio_tracker)
+
+df = pandas.DataFrame({"micro": microprice_tracker,
+                       "mid": midprice_tracker,
+                       "imbalance": imbalance_tracker,
+                       "slope": slope_tracker,
+                       "z-score": z_tracker,
+                       "drift": drift_tracker,
+                       "ratio": ratio_tracker,
+                       "yesses": yes_tracker,
+                       "nos": no_tracker})
+
+print(df)
+
+to_time = int(minutes_to_run*600)
+pegs = to_time//25
+fig, ax = plt.subplots(4, 1)
+
+top = max(df['micro'].max(), df['mid'].max()) + 0.25
+middle_price = (df['micro'].mean() + df['mid'].mean()) / 2
+bottom = min(df['micro'].min(), df['mid'].min()) - 0.25
+
+ax[0].plot(df.index, df['micro'], color="blue")
+# ax[0].plot(df.index, df['mid'], color='red')
+ax[0].set_title('Price')
+ax[0].set_xticks(range(0, to_time, pegs))
+# ax[0].set_ylim(bottom=bottom, top=top)
+
+# ax[3].plot(df.index, df['yesses'])
+ax[3].plot(df.index, df['slope'])
+ax[3].set_title('slope')
+ax[3].set_xticks(range(0, to_time, pegs))
+
+ax[1].plot(df.index, df['z-score'])
+ax[1].set_title('Z-Score')
+ax[1].set_xticks(range(0, to_time, pegs))
+
+ax[2].plot(df.index, df['drift'])
+ax[2].set_title('Drift')
+ax[2].set_xticks(range(0, to_time, pegs))
+
+
+
+
+plt.show()
+
+
+
+
+fig, ax = plt.subplots(2, 4)
+
+ax[0, 0].plot(df.index, df['micro'])
+ax[0, 0].set_title('Microprice')
+
+ax[0, 1].plot(df.index, df['mid'])
+ax[0, 1].set_title('Midprice')
+
+ax[0, 2].plot(df.index, df['imbalance'])
+ax[0, 2].set_title('Imbalance')
+
+ax[0, 3].plot(df.index, df['slope'])
+ax[0, 3].set_title('Slope')
+
+ax[1, 0].plot(df.index, df['z-score'])
+ax[1, 0].set_title('Z-Score')
+
+ax[1, 1].plot(df.index, df['drift'])
+ax[1, 1].set_title('Drift')
+
+ax[1, 2].plot(df.index, df['ratio'])
+ax[1, 2].set_title('Ratio')
+
+
+
+
+
+
+fig.tight_layout()
+
+plt.show()
