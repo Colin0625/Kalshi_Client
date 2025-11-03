@@ -106,7 +106,7 @@ print(f"Client started, portfolio snapshot: {port}")
 
 
 
-ticker = "KXBTCD-25OCT3019-T107499.99"
+ticker = "KXBTCD-25OCT3115-T108999.99"
 
 team1, team2 = client.get_both_tickers(ticker)
 
@@ -236,15 +236,12 @@ while True:
                 no_tracker.append(nos)
 
 
-
-
+                
                 print(f"Mean: {round(mean, 5)}, Std: {round(std, 5)}, Z score: {round(z_score, 5)}")
                 print(quote_ids)
                 print(quote_quantities)
                 print(f"Trades over last 5 seconds >> Yes: {sum(list(yes_trades_queue))}, No: {sum(list(no_trades_queue))}, Ratio (y:n): {ratio}")
                 print(f"Time since starting timer: {time.perf_counter()-start_time}")
-                
-                
                 
                 
                         
