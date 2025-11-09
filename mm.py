@@ -1,4 +1,4 @@
-import CustomClient as cc
+import kalshi_client as cc
 import time
 import threading
 import asyncio
